@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OPG Čičak</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Tablica za status kokoši</h1>
+    <div id="security-quiz" style="max-width:500px;margin:32px auto;padding:32px 16px;background:#eef2fb;border-radius:12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);font-size:1.1em;">
+        <form id="security-form" autocomplete="off">
+            <div style="margin-bottom:20px;">
+                <label>Pitanje 1: </label><br>
+                <span style="font-size:0.96em;color:#555">Koliko puta mi setamo kana svaki dan? (najcesce)?</span><br>
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                  <input type="radio" name="q1" value="5" required> 5
+                </label>
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                  <input type="radio" name="q1" value="2" required> 2
+                </label>
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                    <input type="radio" name="q1" value="3" required> 3
+                  </label>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label>Pitanje 2: Koji auto tvoja zena vozi? (Brand)</label><br>
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                  <input type="radio" name="q2" value="Audo " required> Audi 
+                </label>
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                  <input type="radio" name="q2" value="Mercedes" required> Mercedes
+                </label>
+            </label>
+            <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+              <input type="radio" name="q2" value="Wolkswagen" required> Wolkswagen
+            </label>
+            </div>
+            <div style="margin-bottom:20px;">
+                <label>Pitanje 3: Koje je vrste nas pas?</label><br>   
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                  <input type="radio" name="q3" value="Belgijski ovćar" required> Belgijski ovćar
+                </label>
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                  <input type="radio" name="q3" value="Njemački ovćar" required> Njemački ovćar
+                </label>
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                    <input type="radio" name="q3" value="Rotvajler" required> Rotvajler
+                  </label>
+            </div>
+            <button type="submit" style="margin-top:12px;padding:6px 18px;">Potvrdi</button>
+            <p id="quiz-message" style="color:#c00;margin-top:12px;display:none;"></p>
+        </form>
+    </div>
+
+    <div id="main-table-section" style="display:none;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Količina kokoši</th>
+                    <th>Broj paketa jaja</th>
+                    <th>Cijena po paketu jaja</th>
+                </tr>
+            </thead>
+            <tbody id="editable-table-body">
+                <tr>
+                    <td><input type="number" min="0" id="kokosi1" value="0" /></td>
+                    <td><input type="number" min="0" id="paketa1" value="0" /></td>
+                    <td><input type="text" id="cijena1" value="0" /></td>
+                </tr>
+                <tr>
+                    <td><input type="number" min="0" id="kokosi2" value="0" /></td>
+                    <td><input type="number" min="0" id="paketa2" value="0" /></td>
+                    <td><input type="text" id="cijena2" value="0" /></td>
+                </tr>
+            </tbody>
+        </table>
+        <div style="max-width:500px;margin:16px auto;font-size:1.2em;text-align:center">
+            <strong>Ukupna valuta: <span id="total-sum">0 €</span></strong>
+        </div>
+    </div>
+    <script>
+    // Parse euro/decimal-like value robustly
+    function parseEuroValue(val) {
+        if (!val) return 0;
+        val = val.replace(',', '.');
+        let num = parseFloat(val.replace(/[^\d.]/g, ""));
+        return isNaN(num) ? 0 : num;
+    }
+
+    // Save input data to localStorage
+    function saveInputs() {
+        let rows = [];
+        for (let i = 1; i <= 2; i++) {
+            rows.push({
