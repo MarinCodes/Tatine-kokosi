@@ -25,15 +25,14 @@
             <div style="margin-bottom:20px;">
                 <label>Pitanje 2: Koji auto tvoja zena vozi? (Brand)</label><br>
                 <label style="margin-right:20px;margin-top:7px;display:inline-block;">
-                  <input type="radio" name="q2" value="Audo " required> Audi 
+                  <input type="radio" name="q2" value="Audi" required> Audi 
                 </label>
                 <label style="margin-right:20px;margin-top:7px;display:inline-block;">
                   <input type="radio" name="q2" value="Mercedes" required> Mercedes
                 </label>
-            </label>
-            <label style="margin-right:20px;margin-top:7px;display:inline-block;">
-              <input type="radio" name="q2" value="Wolkswagen" required> Wolkswagen
-            </label>
+                <label style="margin-right:20px;margin-top:7px;display:inline-block;">
+                  <input type="radio" name="q2" value="Wolkswagen" required> Wolkswagen
+                </label>
             </div>
             <div style="margin-bottom:20px;">
                 <label>Pitanje 3: Koje je vrste nas pas?</label><br>   
@@ -47,8 +46,9 @@
                     <input type="radio" name="q3" value="Rotvajler" required> Rotvajler
                   </label>
             </div>
-            <button type="submit" style="margin-top:12px;padding:6px 18px;">Potvrdi</button>
+            <button type="submit" id="quiz-submit-btn" style="margin-top:12px;padding:6px 18px;">Potvrdi</button>
             <p id="quiz-message" style="color:#c00;margin-top:12px;display:none;"></p>
+            <p id="timeout-message" style="color:#b36c0a;margin-top:8px;display:none;"></p>
         </form>
     </div>
 
@@ -79,16 +79,213 @@
         </div>
     </div>
     <script>
+    // Time in milliseconds for lockout (30 minutes)
+    const LOCKOUT_DURATION = 30 * 60 * 1000;
+    const MAX_ATTEMPTS = 3;
+    const STORAGE_FAIL_KEY = "security_quiz_fail_count";
+    const STORAGE_LOCK_KEY = "security_quiz_lock_time";
+    const STORAGE_UNLOCK_KEY = "security_quiz_unlock_deadline";
+
+    // Helpers for persistent tracking
+    function getFailCount() {
+      let n = parseInt(localStorage.getItem(STORAGE_FAIL_KEY), 10);
+      return isNaN(n) ? 0 : n;
+    }
+    function setFailCount(n) {
+      localStorage.setItem(STORAGE_FAIL_KEY, String(n));
+    }
+    function resetFailCount() {
+      localStorage.removeItem(STORAGE_FAIL_KEY);
+    }
+    function setLockTime(t) {
+      localStorage.setItem(STORAGE_LOCK_KEY, String(t));
+      localStorage.setItem(STORAGE_UNLOCK_KEY, String(t + LOCKOUT_DURATION));
+    }
+    function getLockTime() {
+      let t = parseInt(localStorage.getItem(STORAGE_LOCK_KEY), 10);
+      return isNaN(t) ? null : t;
+    }
+    function getUnlockDeadline() {
+      let t = parseInt(localStorage.getItem(STORAGE_UNLOCK_KEY), 10);
+      return isNaN(t) ? null : t;
+    }
+    function clearLockTime() {
+      localStorage.removeItem(STORAGE_LOCK_KEY);
+      localStorage.removeItem(STORAGE_UNLOCK_KEY);
+    }
+
+    function getTimeRemaining(ms) {
+      if (ms < 0) ms = 0;
+      let totalSecs = Math.floor(ms / 1000);
+      let mins = Math.floor(totalSecs / 60);
+      let secs = totalSecs % 60;
+      return mins + " min " + (secs < 10 ? "0" : "") + secs + " s";
+    }
+
+    // Disable/Enable quiz form and show/hide messages
+    function updateQuizState() {
+      const failCount = getFailCount();
+      const lockTime = getLockTime();
+      const unlockDeadline = getUnlockDeadline();
+      const now = Date.now();
+      const quizForm = document.getElementById("security-form");
+      const quizDiv = document.getElementById("security-quiz");
+      const btn = document.getElementById("quiz-submit-btn");
+      const quizMsg = document.getElementById("quiz-message");
+      const timeoutMsg = document.getElementById("timeout-message");
+
+      // Are we locked out?
+      let locked = false;
+      let unlocksIn = null;
+      if (lockTime && unlockDeadline && now < unlockDeadline) {
+        locked = true;
+        unlocksIn = unlockDeadline - now;
+      } else {
+        // If lock time expired, clear it and reset fails as precaution
+        if (lockTime) {
+          clearLockTime();
+          resetFailCount();
+        }
+        locked = false;
+      }
+
+      if (locked) {
+        btn.disabled = true;
+        // Hide red alert, show orange lockout message
+        quizMsg.style.display = "none";
+        timeoutMsg.style.display = "";
+        function updateTimeoutDisplay() {
+          let now2 = Date.now();
+          let timeRem = getUnlockDeadline() - now2;
+          if (timeRem <= 0) {
+            // Unlock quiz
+            btn.disabled = false;
+            timeoutMsg.style.display = "none";
+            clearLockTime();
+            resetFailCount();
+          } else {
+            timeoutMsg.textContent = "Previše netočnih pokušaja. Pričekajte još " + getTimeRemaining(timeRem) + " prije nego pokušate ponovno.";
+            setTimeout(updateTimeoutDisplay, 950);
+          }
+        }
+        updateTimeoutDisplay();
+      } else {
+        btn.disabled = false;
+        timeoutMsg.style.display = "none";
+      }
+    }
+
     // Parse euro/decimal-like value robustly
     function parseEuroValue(val) {
         if (!val) return 0;
-        val = val.replace(',', '.');
-        let num = parseFloat(val.replace(/[^\d.]/g, ""));
+        // Accepts both , and . as decimal separators, strips non-numeric except , and .
+        val = ("" + val).replace(/\s/g, '').replace(',', '.');
+        // Remove all except digits and at most one period (.)
+        let cleaned = val.replace(/[^0-9.]/g, '');
+        // If more than one period exists, keep only the first (for floats like "12.34.56")
+        let idx = cleaned.indexOf('.');
+        if (idx !== -1) cleaned = cleaned.slice(0, idx + 1) + cleaned.slice(idx + 1).replace(/\./g, '');
+        let num = parseFloat(cleaned);
         return isNaN(num) ? 0 : num;
     }
+
+    // Quiz security logic with lockout
+    document.getElementById('security-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        // Check lockout before allow submit
+        const btn = document.getElementById("quiz-submit-btn");
+        if (btn.disabled) return false;
+
+        var q1 = document.querySelector('input[name="q1"]:checked');
+        var q2 = document.querySelector('input[name="q2"]:checked');
+        var q3 = document.querySelector('input[name="q3"]:checked');
+        var message = document.getElementById('quiz-message');
+
+        // Correct answers:
+        if (
+            q1 && q2 && q3 &&
+            q1.value === "5" &&
+            q2.value.trim().toLowerCase() === "audi" &&
+            q3.value === "Belgijski ovćar"
+        ) {
+            document.getElementById('security-quiz').style.display = 'none';
+            document.getElementById('main-table-section').style.display = '';
+            resetFailCount();
+            clearLockTime();
+        } else {
+            // Increment fail count
+            let failCount = getFailCount() + 1;
+            setFailCount(failCount);
+
+            if (failCount >= MAX_ATTEMPTS) {
+                // Lock quiz
+                setLockTime(Date.now());
+                updateQuizState();
+                message.style.display = "none";
+            } else {
+                message.textContent = "Odgovori nisu točni. Pokušajte ponovno. (" + failCount + "/" + MAX_ATTEMPTS + ")";
+                message.style.display = '';
+            }
+        }
+    });
 
     // Save input data to localStorage
     function saveInputs() {
         let rows = [];
         for (let i = 1; i <= 2; i++) {
             rows.push({
+                kokosi: document.getElementById('kokosi' + i).value,
+                paketa: document.getElementById('paketa' + i).value,
+                cijena: document.getElementById('cijena' + i).value
+            });
+        }
+        localStorage.setItem("tableRows", JSON.stringify(rows));
+    }
+
+    // Load input data from localStorage
+    function loadInputs() {
+        let rows = [];
+        try {
+            rows = JSON.parse(localStorage.getItem("tableRows")) || [];
+        } catch (e) {
+            rows = [];
+        }
+        for (let i = 1; i <= 2; i++) {
+            if (rows[i - 1]) {
+                document.getElementById('kokosi' + i).value = rows[i - 1].kokosi || "0";
+                document.getElementById('paketa' + i).value = rows[i - 1].paketa || "0";
+                document.getElementById('cijena' + i).value = rows[i - 1].cijena || "0";
+            }
+        }
+    }
+
+    // Calculate and update total sum
+    function calculateTotal() {
+        let sum = 0;
+        for (let i = 1; i <= 2; i++) {
+            let paket = parseEuroValue(document.getElementById('paketa' + i).value);
+            let cijena = parseEuroValue(document.getElementById('cijena' + i).value);
+            sum += paket * cijena;
+        }
+        document.getElementById('total-sum').textContent = sum.toLocaleString("hr-HR", {minimumFractionDigits:2, maximumFractionDigits:2}) + " €";
+    }
+
+    // Attach change handlers
+    for (let i = 1; i <= 2; i++) {
+        ['kokosi', 'paketa', 'cijena'].forEach(function(field) {
+            document.getElementById(field + i).addEventListener('input', function() {
+                saveInputs();
+                calculateTotal();
+            });
+        });
+    }
+
+    // On page load: load values, update table, and enforce lockout-state
+    loadInputs();
+    calculateTotal();
+    updateQuizState();
+
+    </script>
+</body>
+</html>
+
